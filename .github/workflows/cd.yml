@@ -10,16 +10,30 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
-      
-    - name: Build Docker Image
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v1
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+    
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        project_id: ${{ secrets.GCP_PROJECT_ID }}
+    
+    - name: Configure Docker for Artifact Registry
       run: |
-        docker build -t challenge-mle .
-        
-    - name: Deploy to GCP (Simulated)
+        gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+    
+    - name: Build and Push Docker Image
       run: |
-        echo "Authenticating with GCP..."
-        echo "Pushing image to GCR..."
-        echo "Deploying to Cloud Run..."
-        # In a real scenario, we would use google-github-actions/deploy-cloudrun
+        gcloud builds submit --tag us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/challenge-repo/challenge-mle:latest .
+    
+    - name: Deploy to Cloud Run
+      run: |
+        gcloud run deploy challenge-mle \
+          --image us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/challenge-repo/challenge-mle:latest \
+          --platform managed \
+          --region us-central1 \
+          --allow-unauthenticated \
+          --port 8080
+
